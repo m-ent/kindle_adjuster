@@ -7,10 +7,49 @@
 pixels = {:kindle_paperwhite => "658x905"} 
 device = :kindle_paperwhite
 
-fuzz_level = 70  # 余白切り取りのための設定値 default: 70%
+crop_nombre = true  # ノンブルなどを削除するか
+
+fuzz_level = 50  # 余白切り取りのための設定値 default: 50%
 setting1 = "40%,90%.0.4" # やや地が濃いデータ用
 setting2 = "25%,90%,0.3" # やや地が白いデータ用
 level_settings = setting1
+offset_top = 0   # ノンブルを除去しない場合の値
+offset_buttom = 0
+
+def search_breakpoint(side)
+  sample_height = `convert png/output.jpg -format "%H" info:`.to_i
+  if side == :top
+    start_offset = 0
+    dir = 1       # 探索方向は下
+  else
+    start_offset = sample_height
+    dir = -1      # 探索方向は上
+  end
+
+  trend = Array.new
+  trend << {:offset => 0, :value => 65536, :sign => 1}
+  20.times do |i|
+    offset = i * 10 + 10
+    y = start_offset + dir * offset
+    value = `convert ./png/output.jpg -crop x#{offset}+0+#{dir>0? 0: y} -format "%[mean]" info:`.to_f
+    sign = (value - trend.last[:value] ) > -250? 1: -1
+                          # sign は範囲内の画素値の平均値が黒くなれば負
+                          # 白くなるか、余り変わらなければ正とする
+    trend << {:offset => offset, :value => value, :sign => sign}
+  end
+
+  i = 0
+  while (trend[i][:sign] > 0) do  # 最初は白いままで
+    i += 1
+    return 0 if i > 30
+  end
+  while (trend[i][:sign] < 0) do  # 次に黒くなる(ノンブルなどで)
+    i += 1                        # 30回目(300px)まで黒いままなら本文に
+    return 0 if i > 30            # 入っていると考える
+  end
+
+  return trend[i-1][:offset]
+end
 
 book = ARGV.shift
 if not book
@@ -63,9 +102,28 @@ i =0
 end
 
 puts "calculating effective size... #{Time.now - start_time}sec"
-system("convert #{sample_page_list} -background none -compose darken -flatten ./png/output.jpg") # リストのページをすべて重ね合わせる
+system("convert #{sample_page_list} -level #{level_settings} -background none -compose darken -flatten ./png/output.jpg") # リストのページをすべて重ね合わせる
 
 crop_geometry = `convert png/output.jpg -fuzz #{fuzz_level}% -trim -format "%wx%h%X%Y" info:`  # 重ね合わせ画像の余白を検出
+
+if crop_nombre # ノンブル除去するなら上下のオフセット値で切り出し範囲を調整
+  sample_height = `convert png/output.jpg -format "%H" info:`.to_i
+  sample_width = `convert png/output.jpg -format "%W" info:`.to_i
+  offset_top = search_breakpoint(:top)
+  offset_buttom = search_breakpoint(:buttom)
+  if offset_top == 0
+    top_fill = ""
+  else
+    top_fill = " -fill white -draw \"rectangle #{sample_width} #{offset_top} 0 0\" "
+  end
+  if offset_buttom == 0
+    buttom_fill = ""
+  else
+    buttom_fill = " -fill white -draw \"rectangle #{sample_width} #{offset_buttom} 0 #{sample_height - offset_buttom - 1}\" "
+  end
+  system("convert ./png/output.jpg #{top_fill} #{buttom_fill} ./png/output2.jpg")     # ノンブル部分を白で埋める
+  crop_geometry = `convert png/output2.jpg -fuzz #{fuzz_level}% -trim -format "%wx%h%X%Y" info:`  # 再度余白を検出
+end
 
 Dir.mkdir("./conv") if not Dir.exist?("./conv")
 i = 0
@@ -83,7 +141,7 @@ end
 
 puts "making pdf from png files... #{Time.now - start_time}sec"
 Dir.glob('./conv/*.png').each do |f|
-  system("sam2p #{f} #{f}.pdf")
+  system("sam2p -j:quiet #{f} #{f}.pdf")
 end
 system("pdftk ./conv/*.pdf cat output ./#{book.sub('.pdf','_kindle.pdf')}")
 
