@@ -9,6 +9,10 @@
 /test/version_tmp/
 /tmp/
 
+*.pdf
+/png/
+/conv/
+
 ## Specific to RubyMotion:
 .dat*
 .repl_history
