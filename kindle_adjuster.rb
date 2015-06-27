@@ -8,6 +8,7 @@ pixels = {:kindle_paperwhite => "658x905"}
 device = :kindle_paperwhite
 
 crop_nombre = true  # ノンブルなどを削除するか
+cleanup_tmpfiles = false #true  # 最後に一時ファイルを削除するか
 
 fuzz_level = 50  # 余白切り取りのための設定値 default: 50%
 setting1 = "40%,90%.0.4" # やや地が濃いデータ用
@@ -41,14 +42,19 @@ def search_breakpoint(side)
   i = 0
   while (trend[i][:sign] > 0) do  # 最初は白いままで
     i += 1
-    return 0 if i > 30
+    return 0 if i > 20
   end
   while (trend[i][:sign] < 0) do  # 次に黒くなる(ノンブルなどで)
-    i += 1                        # 30回目(300px)まで黒いままなら本文に
-    return 0 if i > 30            # 入っていると考える
+    i += 1                        # 20回目(200px)まで黒いままなら本文に
+    return 0 if i > 20            # 入っていると考える
   end
 
   return trend[i-1][:offset]
+end
+
+def elapsed_time(start_time)
+  t = Time.now - start_time
+  "#{(t/60).floor}min #{(t % 60).floor}sec"
 end
 
 book = ARGV.shift
@@ -60,12 +66,12 @@ end
 start_time = Time.now
 
 Dir.mkdir("./png") if not Dir.exist?("./png")
-puts "splitting #{book} into png images...  #{Time.now - start_time}sec"
+puts "splitting #{book} into png images...  #{elapsed_time(start_time)}"
 system("pdfimages -png #{book} ./png/page") # ページごとに png に切り分け
 
-puts "selecting pages... #{Time.now - start_time}sec"
+puts "selecting pages... #{elapsed_time(start_time)}"
 pages = Array.new
-Dir.glob('./png/*.png').each do |f|  # ページごとのファイル名と横幅を季肋
+Dir.glob('./png/*.png').each do |f|  # ページごとのファイル名と横幅を記録
   w = `identify -format '%w' #{f}`
   pages << [f, w.to_i]
 end
@@ -101,7 +107,7 @@ i =0
   sample_page_list << " #{pages[i * skip_rate][0]}"
 end
 
-puts "calculating effective size... #{Time.now - start_time}sec"
+puts "calculating effective size... #{elapsed_time(start_time)}"
 system("convert #{sample_page_list} -level #{level_settings} -background none -compose darken -flatten ./png/output.jpg") # リストのページをすべて重ね合わせる
 
 crop_geometry = `convert png/output.jpg -fuzz #{fuzz_level}% -trim -format "%wx%h%X%Y" info:`  # 重ね合わせ画像の余白を検出
@@ -127,7 +133,7 @@ end
 
 Dir.mkdir("./conv") if not Dir.exist?("./conv")
 i = 0
-puts "cropping/converting png images... #{Time.now - start_time}sec"
+puts "cropping/converting png images... #{elapsed_time(start_time)}"
 pages.each do |p|
   case i
   when 0, (pages.length-1)  # 最初と最後のページ(表紙と裏表紙)はcropしない
@@ -139,15 +145,17 @@ pages.each do |p|
   i += 1
 end
 
-puts "making pdf from png files... #{Time.now - start_time}sec"
+puts "making pdf from png files... #{elapsed_time(start_time)}"
 Dir.glob('./conv/*.png').each do |f|
   system("sam2p -j:quiet #{f} #{f}.pdf")
 end
 system("pdftk ./conv/*.pdf cat output ./#{book.sub('.pdf','_kindle.pdf')}")
 
-Dir.glob("./png/*") do |f|
+if cleanup_tmpfiles
+  Dir.glob("./png/*") do |f|
     File.delete(f)
-end
-Dir.glob("./conv/*") do |f|
+  end
+  Dir.glob("./conv/*") do |f|
     File.delete(f)
+  end
 end
