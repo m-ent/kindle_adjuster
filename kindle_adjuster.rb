@@ -8,7 +8,7 @@ pixels = {:kindle_paperwhite => "658x905"}
 device = :kindle_paperwhite
 
 crop_nombre = true  # ノンブルなどを削除するか
-cleanup_tmpfiles = false #true  # 最後に一時ファイルを削除するか
+cleanup_tmpfiles = true  # 最後に一時ファイルを削除するか
 
 fuzz_level = 50  # 余白切り取りのための設定値 default: 50%
 setting1 = "40%,90%.0.4" # やや地が濃いデータ用
