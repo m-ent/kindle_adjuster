@@ -5,10 +5,12 @@
 #            graphics/pdftk
 
 pixels = {:kindle_paperwhite => "658x905"} 
-device = :kindle_paperwhite
 
+device = :kindle_paperwhite
 crop_nombre = true  # ノンブルなどを削除するか
 cleanup_tmpfiles = true  # 最後に一時ファイルを削除するか
+edge_lines_enable = true # ページの端に線を描き、Kindleによる自動的な
+                         # 余白削除を抑制する
 
 fuzz_level = 50  # 余白切り取りのための設定値 default: 50%
 setting1 = "40%,90%.0.4" # やや地が濃いデータ用
@@ -134,12 +136,24 @@ end
 Dir.mkdir("./conv") if not Dir.exist?("./conv")
 i = 0
 puts "cropping/converting png images... #{elapsed_time(start_time)}"
+edge_lines = ""
+if edge_lines_enable
+  /(\d+)x(\d+)/.match(pixels[device])
+  output_x = $1.to_i
+  output_y = $2.to_i
+  if (output_y / output_x.to_f) > (sample_height / sample_width.to_f) 
+    output_y = (output_x * sample_height / sample_width.to_f).round
+  else
+    output_x = (output_y * sample_width / sample_height.to_f).round
+  end
+  edge_lines = "-strokewidth 10 -draw 'line 0,0 658,0'"
+end
 pages.each do |p|
   case i
   when 0, (pages.length-1)  # 最初と最後のページ(表紙と裏表紙)はcropしない
     system("convert #{p[0]} -resize #{pixels[device]} -type Grayscale ./conv/#{'%04d' % i}.png")
   when 1..(pages.length-2)  # 他はcropしてから処理
-    system("convert #{p[0]} -crop #{crop_geometry} -resize #{pixels[device]} -type Grayscale -level #{level_settings} ./conv/#{'%04d' % i}.png")
+    system("convert #{p[0]} -crop #{crop_geometry} -resize #{pixels[device]} -type Grayscale -level #{level_settings} #{edge_lines} ./conv/#{'%04d' % i}.png")
   else
   end
   i += 1
