@@ -153,7 +153,8 @@ pages.each do |p|
   when 0, (pages.length-1)  # 最初と最後のページ(表紙と裏表紙)はcropしない
     system("convert #{p[0]} -resize #{pixels[device]} -type Grayscale ./conv/#{'%04d' % i}.png")
   when 1..(pages.length-2)  # 他はcropしてから処理
-    system("convert #{p[0]} -crop #{crop_geometry} -resize #{pixels[device]} -type Grayscale -level #{level_settings} #{edge_lines} ./conv/#{'%04d' % i}.png")
+#    system("convert #{p[0]} -crop #{crop_geometry} -resize #{pixels[device]} -type Grayscale -level #{level_settings} #{edge_lines} ./conv/#{'%04d' % i}.png")
+    system("convert #{p[0]} -rotate \"90>\" -crop #{crop_geometry} -resize #{pixels[device]} -type Grayscale -level #{level_settings} #{edge_lines} ./conv/#{'%04d' % i}.png")
   else
   end
   i += 1
