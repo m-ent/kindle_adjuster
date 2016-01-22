@@ -4,54 +4,73 @@
 #            graphics/sam2p
 #            graphics/pdftk
 
-pixels = {:kindle_paperwhite => "658x905"} 
+Pixels = {:kindle_paperwhite => "658x905"}
+Device = :kindle_paperwhite
 
-device = :kindle_paperwhite
-crop_nombre = true  # ノンブルなどを削除するか
+Crop_nombre = true # ノンブルなどを削除するか
 cleanup_tmpfiles = true  # 最後に一時ファイルを削除するか
 edge_lines_enable = true # ページの端に線を描き、Kindleによる自動的な
                          # 余白削除を抑制する
-
-fuzz_level = 50  # 余白切り取りのための設定値 default: 50%
 setting1 = "40%,90%.0.4" # やや地が濃いデータ用
 setting2 = "25%,90%,0.3" # やや地が白いデータ用
 level_settings = setting1
-offset_top = 0   # ノンブルを除去しない場合の値
-offset_buttom = 0
 
-def search_breakpoint(side)
-  sample_height = `convert png/output.jpg -format "%H" info:`.to_i
-  if side == :top
-    start_offset = 0
-    dir = 1       # 探索方向は下
+def get_breakpoint(filename, axis, sample_n, step, threshold)
+  case axis
+  when :x
+    g = ['', 'x0+', '+0']  # #{step}x0+#{ofs}+0
+  when :y
+    g = ['0x', '+0+', '']  # 0x#{step}+0+#{ofs}
+  end
+  white = 65535
+  start_p = 0
+  breakpoints = Array.new
+  sample_n.times do |i|
+    ofs = (step * i).to_i
+    value = \
+      `convert #{filename} -crop #{g[0]}#{step}#{g[1]}#{ofs}#{g[2]}\
+       -format "%[mean]" info:`.to_f
+    white = value if i == 0
+    if (start_p == 0) && (value/white < threshold)
+      start_p = ofs
+    end
+    if (start_p != 0) && (value/white >= threshold)
+      breakpoints << start_p
+      breakpoints << ofs
+      start_p = 0
+    end
+  end
+  return breakpoints[0]-step.to_i, breakpoints[-1]+step.to_i
+end
+
+def get_crop_area(f)
+  org_size = `convert #{f} -format "%Wx%H" info:`.match(/(\d+)x(\d+)/)
+  x = org_size[1].to_f
+  y = org_size[2].to_f
+  sample_n = 150
+  dx = x/sample_n
+  dy = y/sample_n
+  threshold_x = 0.75
+  threshold_y = Crop_nombre ? 0.66: 0.90
+
+  dev = Pixels[Device].match(/(\d+)x(\d+)/)
+  dev_aspect = dev[1].to_f/ dev[2].to_f
+
+  start_x, end_x = get_breakpoint(f, :x, sample_n, dx, threshold_x)
+  start_y, end_y = get_breakpoint(f, :y, sample_n, dy, threshold_y)
+
+  if ((end_x-start_x).to_f/(end_y-start_y)) < dev_aspect
+    adjust = (end_y - start_y) * dev_aspect - (end_x - start_x)
+    start_x -= adjust.to_i / 2
+    end_x += adjust.to_i / 2
   else
-    start_offset = sample_height
-    dir = -1      # 探索方向は上
+    adjust = (end_x - start_x) / dev_aspect - (end_y - start_y)
+    start_y -= adjust.to_i / 2
+    end_y += adjust.to_i / 2
   end
 
-  trend = Array.new
-  trend << {:offset => 0, :value => 65536, :sign => 1}
-  20.times do |i|
-    offset = i * 10 + 10
-    y = start_offset + dir * offset
-    value = `convert ./png/output.jpg -crop x#{offset}+0+#{dir>0? 0: y} -format "%[mean]" info:`.to_f
-    sign = (value - trend.last[:value] ) > -250? 1: -1
-                          # sign は範囲内の画素値の平均値が黒くなれば負
-                          # 白くなるか、余り変わらなければ正とする
-    trend << {:offset => offset, :value => value, :sign => sign}
-  end
-
-  i = 0
-  while (trend[i][:sign] > 0) do  # 最初は白いままで
-    i += 1
-    return 0 if i > 20
-  end
-  while (trend[i][:sign] < 0) do  # 次に黒くなる(ノンブルなどで)
-    i += 1                        # 20回目(200px)まで黒いままなら本文に
-    return 0 if i > 20            # 入っていると考える
-  end
-
-  return trend[i-1][:offset]
+  return {x1: end_x - start_x, y1: end_y - start_y,\
+          x2: start_x, y2: start_y}
 end
 
 def elapsed_time(start_time)
@@ -104,7 +123,7 @@ if pages.length < 100  # 100ページ未満のpdfの場合は全てのページ�
   skip_rate = 1
 end
 
-i =0
+i = 0
 5.upto(skips - 5) do |i|
   sample_page_list << " #{pages[i * skip_rate][0]}"
 end
@@ -112,49 +131,22 @@ end
 puts "calculating effective size... #{elapsed_time(start_time)}"
 system("convert #{sample_page_list} -level #{level_settings} -background none -compose darken -flatten ./png/output.jpg") # リストのページをすべて重ね合わせる
 
-crop_geometry = `convert png/output.jpg -fuzz #{fuzz_level}% -trim -format "%wx%h%X%Y" info:`  # 重ね合わせ画像の余白を検出
-
-if crop_nombre # ノンブル除去するなら上下のオフセット値で切り出し範囲を調整
-  sample_height = `convert png/output.jpg -format "%H" info:`.to_i
-  sample_width = `convert png/output.jpg -format "%W" info:`.to_i
-  offset_top = search_breakpoint(:top)
-  offset_buttom = search_breakpoint(:buttom)
-  if offset_top == 0
-    top_fill = ""
-  else
-    top_fill = " -fill white -draw \"rectangle #{sample_width} #{offset_top} 0 0\" "
-  end
-  if offset_buttom == 0
-    buttom_fill = ""
-  else
-    buttom_fill = " -fill white -draw \"rectangle #{sample_width} #{offset_buttom} 0 #{sample_height - offset_buttom - 1}\" "
-  end
-  system("convert ./png/output.jpg #{top_fill} #{buttom_fill} ./png/output2.jpg")     # ノンブル部分を白で埋める
-  crop_geometry = `convert png/output2.jpg -fuzz #{fuzz_level}% -trim -format "%wx%h%X%Y" info:`  # 再度余白を検出
-end
+g = get_crop_area('./png/output.jpg')
+crop_geometry = "#{g[:x1]}x#{g[:y1]}+#{g[:x2]}+#{g[:y2]}"
 
 Dir.mkdir("./conv") if not Dir.exist?("./conv")
 i = 0
 puts "cropping/converting png images... #{elapsed_time(start_time)}"
 edge_lines = ""
 if edge_lines_enable
-  /(\d+)x(\d+)/.match(pixels[device])
-  output_x = $1.to_i
-  output_y = $2.to_i
-  if (output_y / output_x.to_f) > (sample_height / sample_width.to_f) 
-    output_y = (output_x * sample_height / sample_width.to_f).round
-  else
-    output_x = (output_y * sample_width / sample_height.to_f).round
-  end
   edge_lines = "-strokewidth 10 -draw 'line 0,0 658,0'"
 end
 pages.each do |p|
   case i
   when 0, (pages.length-1)  # 最初と最後のページ(表紙と裏表紙)はcropしない
-    system("convert #{p[0]} -resize #{pixels[device]} -type Grayscale ./conv/#{'%04d' % i}.png")
+    system("convert #{p[0]} -resize #{Pixels[Device]} -type Grayscale ./conv/#{'%04d' % i}.png")
   when 1..(pages.length-2)  # 他はcropしてから処理
-#    system("convert #{p[0]} -crop #{crop_geometry} -resize #{pixels[device]} -type Grayscale -level #{level_settings} #{edge_lines} ./conv/#{'%04d' % i}.png")
-    system("convert #{p[0]} -rotate \"90>\" -crop #{crop_geometry} -resize #{pixels[device]} -type Grayscale -level #{level_settings} #{edge_lines} ./conv/#{'%04d' % i}.png")
+    system("convert #{p[0]} -rotate \"90>\" -crop #{crop_geometry} -resize #{Pixels[Device]} -type Grayscale -level #{level_settings} #{edge_lines} ./conv/#{'%04d' % i}.png")
   else
   end
   i += 1
