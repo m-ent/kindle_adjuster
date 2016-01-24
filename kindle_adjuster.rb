@@ -9,7 +9,7 @@ Crop_nombre = true # ノンブルなどを削除するか
 cleanup_tmpfiles = true  # 最後に一時ファイルを削除するか
 edge_lines_enable = true # ページの端に線を描き、Kindleによる自動的な
                          # 余白削除を抑制する
-setting1 = "40%,90%.0.4" # やや地が濃いデータ用
+setting1 = "40%,80%.0.25" # やや地が濃いデータ用
 setting2 = "25%,90%,0.3" # やや地が白いデータ用
 level_settings = setting1
 
