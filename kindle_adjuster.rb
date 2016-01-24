@@ -4,9 +4,7 @@
 #            graphics/sam2p
 #            graphics/pdftk
 
-Pixels = {:kindle_paperwhite => "658x905"}
-Device = :kindle_paperwhite
-
+Device_name = :kindle_paperwhite
 Crop_nombre = true # ノンブルなどを削除するか
 cleanup_tmpfiles = true  # 最後に一時ファイルを削除するか
 edge_lines_enable = true # ページの端に線を描き、Kindleによる自動的な
@@ -14,6 +12,20 @@ edge_lines_enable = true # ページの端に線を描き、Kindleによる自�
 setting1 = "40%,90%.0.4" # やや地が濃いデータ用
 setting2 = "25%,90%,0.3" # やや地が白いデータ用
 level_settings = setting1
+
+class Device
+  attr_reader :name, :pixels, :x, :y, :aspect
+
+  def initialize(device_name)
+    pix = {:kindle_paperwhite => "658x905"}
+    @name = device_name.to_s
+    @pixels = pix[device_name]
+    @pixels.match(/(\d+)x(\d+)/)
+    @x = $1.to_i
+    @y = $2.to_i
+    @aspect = @x.to_f/@y.to_f
+  end
+end
 
 def get_breakpoint(filename, axis, sample_n, step, threshold)
   case axis
@@ -53,8 +65,7 @@ def get_crop_area(f)
   threshold_x = 0.75
   threshold_y = Crop_nombre ? 0.66: 0.90
 
-  dev = Pixels[Device].match(/(\d+)x(\d+)/)
-  dev_aspect = dev[1].to_f/ dev[2].to_f
+  dev_aspect = Device.new(Device_name).aspect
 
   start_x, end_x = get_breakpoint(f, :x, sample_n, dx, threshold_x)
   start_y, end_y = get_breakpoint(f, :y, sample_n, dy, threshold_y)
@@ -83,6 +94,8 @@ if not book
   puts "Usage: ruby kindle_adjuster bookname.pdf"
   exit
 end
+
+dev = Device.new(Device_name)
 
 start_time = Time.now
 
@@ -139,14 +152,14 @@ i = 0
 puts "cropping/converting png images... #{elapsed_time(start_time)}"
 edge_lines = ""
 if edge_lines_enable
-  edge_lines = "-strokewidth 10 -draw 'line 0,0 658,0'"
+  edge_lines = "-strokewidth 10 -draw 'line 0,0 #{dev.x},0'"
 end
 pages.each do |p|
   case i
   when 0, (pages.length-1)  # 最初と最後のページ(表紙と裏表紙)はcropしない
-    system("convert #{p[0]} -resize #{Pixels[Device]} -type Grayscale ./conv/#{'%04d' % i}.png")
+    system("convert #{p[0]} -resize #{dev.pixels} -type Grayscale ./conv/#{'%04d' % i}.png")
   when 1..(pages.length-2)  # 他はcropしてから処理
-    system("convert #{p[0]} -rotate \"90>\" -crop #{crop_geometry} -resize #{Pixels[Device]} -type Grayscale -level #{level_settings} #{edge_lines} ./conv/#{'%04d' % i}.png")
+    system("convert #{p[0]} -rotate \"90>\" -crop #{crop_geometry} -resize #{dev.pixels} -type Grayscale -level #{level_settings} #{edge_lines} ./conv/#{'%04d' % i}.png")
   else
   end
   i += 1
