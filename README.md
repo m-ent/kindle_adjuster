@@ -17,28 +17,30 @@ FreeBSD 上で以下のソフトウェアを使用しています。
 
 ## 使い方
 
-`% ruby kindle_adjuster [book.pdf]`
+`% ruby kindle_adjuster [book.pdf or pdf_directory]`
 
-これで同じディレクトリに `book_kindle.pdf` が作成されます。
+これで同じディレクトリに `book.pdf` から `book_kindle.pdf` が作成されます。
 
 ## オプションなど
 
 オプションはスクリプト本体に書き込むようにしています。
 
-- device
-  + 最適化対象のデバイス名を選択します。現状は Kindle paperwhite (212ppi) のみ設定がありますが、設定を追加する場合はすぐ上の `pixels` に端末名と解像度の hash を追加するだけです。
+- device_name
+  + 最適化対象のデバイス名を選択します。現状は Kindle paperwhite (212ppi) のみ設定がありますが、設定を追加する場合は `Device` class 定義内の `pix` に端末名と解像度の hash を追加するだけです。
 - crop_nombre
   + ノンブル(ページ番号など)を切り落とすか。標準では切り落とす設定ですが、false にするとノンブルは残るはずです。
 - cleanup_tmpfiles
   + 作成途中で 'png'、'conv' のディレクトリに一時ファイルを作成します。変換終了後に一時ファイルを削除するかどうか設定します。
+- edge_lines_enable
+  + 余白が多い場合 Kindle が自動的に余白を削除することがありますが、この場合文字の大きさが拡大されてしまいます。これを抑制するためにページの上端に線を描くようにします。
 
 ## To adjust DIY-scanned books (pdf) to a Kindle
 
 ### usage
 
-`% ruby kindle_adjuster [book.pdf]`
+`% ruby kindle_adjuster [book.pdf or pdf_directory]`
 
-it makes a file book_kindle.pdf in the same directory.
+it makes a pdf file "book_kindle.pdf" from "book.pdf" in the same directory.
 
 ### requires
 
