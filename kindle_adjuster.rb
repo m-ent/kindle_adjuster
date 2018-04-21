@@ -4,7 +4,8 @@
 #            graphics/sam2p
 #            graphics/pdftk
 
-device_name = :kindle_paperwhite
+#device_name = :kindle_paperwhite #5th Gen, 2012
+device_name = :kindle_paperwhite3 #7th Gen, 2015
 crop_nombre = true # ノンブルなどを削除するか
 cleanup_tmpfiles = true  # 最後に一時ファイルを削除するか
 edge_lines_enable = true # ページの端に線を描き、Kindleによる自動的な
@@ -17,7 +18,8 @@ class Device
   attr_reader :name, :pixels, :x, :y, :aspect
 
   def initialize(device_name)
-    pix = {:kindle_paperwhite => "658x905"}
+    pix = {:kindle_paperwhite => "658x905",
+           :kindle_paperwhite3 => "1072x1448"}
     @name = device_name.to_s
     @pixels = pix[device_name]
     @pixels.match(/(\d+)x(\d+)/)
