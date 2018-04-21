@@ -13,6 +13,14 @@ edge_lines_enable = true # ページの端に線を描き、Kindleによる自�
 setting1 = "40%,80%.0.25" # やや地が濃いデータ用
 setting2 = "25%,90%,0.3" # やや地が白いデータ用
 level_settings = setting1
+work_dir = "/tmp"
+while (File.exists?(work_dir))
+  work_dir = "/tmp/" + `date "+%Y%m%d%H%M%S"`.chomp + "-%03d" % (1000 * rand)
+end
+Work_dir = work_dir
+Dir.mkdir(Work_dir)
+Dir.mkdir("#{Work_dir}/png")
+Dir.mkdir("#{Work_dir}/conv")
 
 class Device
   attr_reader :name, :pixels, :x, :y, :aspect
@@ -106,11 +114,11 @@ class Book
     elapsed_time = Elapsed_time.new
     @settings = settings
     puts "#{book}: splitting into png images... #{elapsed_time.show}"
-    system("pdfimages -png #{book} ./png/page") # ページごとに png に切り分け
+    system("pdfimages -png #{book} #{Work_dir}/png/page") # ページごとに png に切り分け
     puts "selecting pages... #{elapsed_time.show}"
 
     pages = Array.new
-    Dir.glob('./png/*.png').each do |f|  # ページごとのファイル名と横幅を記録
+    Dir.glob("#{Work_dir}/png/*.png").each do |f|  # ページごとのファイル名と横幅を記録
       w = `identify -format '%w' #{f}`
       pages << [f, w.to_i]
     end
@@ -147,9 +155,9 @@ class Book
     end
 
     puts "calculating effective size... #{elapsed_time.show}"
-    system("convert #{sample_page_list} -level #{@settings[:level_settings]} -background none -compose darken -flatten ./png/output.jpg") # リストのページをすべて重ね合わせる
+    system("convert #{sample_page_list} -level #{@settings[:level_settings]} -background none -compose darken -flatten #{Work_dir}/png/output.jpg") # リストのページをすべて重ね合わせる
 
-    g = get_crop_area('./png/output.jpg', @settings)
+    g = get_crop_area("#{Work_dir}/png/output.jpg", @settings)
     crop_geometry = "#{g[:x1]}x#{g[:y1]}+#{g[:x2]}+#{g[:y2]}"
 
     i = 0
@@ -157,27 +165,30 @@ class Book
     pages.each do |p|
       case i
       when 0, (pages.length-1)  # 最初と最後のページ(表紙と裏表紙)はcropしない
-        system("convert #{p[0]} -resize #{@settings[:device].pixels} -type Grayscale ./conv/#{'%04d' % i}.png")
+        system("convert #{p[0]} -resize #{@settings[:device].pixels} -type Grayscale #{Work_dir}/conv/#{'%04d' % i}.png")
       when 1..(pages.length-2)  # 他はcropしてから処理
-        system("convert #{p[0]} -rotate \"90>\" -crop #{crop_geometry} -resize #{@settings[:device].pixels} -type Grayscale -level #{@settings[:level_settings]} #{@settings[:edge_lines]} ./conv/#{'%04d' % i}.png")
+        system("convert #{p[0]} -rotate \"90>\" -crop #{crop_geometry} -resize #{@settings[:device].pixels} -type Grayscale -level #{@settings[:level_settings]} #{@settings[:edge_lines]} #{Work_dir}/conv/#{'%04d' % i}.png")
       else
       end
       i += 1
     end
 
     puts "making pdf from png files... #{elapsed_time.show}"
-    Dir.glob('./conv/*.png').each do |f|
+    Dir.glob("#{Work_dir}/conv/*.png").each do |f|
       system("sam2p -j:quiet #{f} #{f}.pdf")
     end
-    system("pdftk ./conv/*.pdf cat output #{book.sub('.pdf','_kindle.pdf')}")
+    system("pdftk #{Work_dir}/conv/*.pdf cat output #{book.sub('.pdf','_kindle.pdf')}")
 
     if @settings[:cleanup_tmpfiles]
-      Dir.glob("./png/*") do |f|
+      Dir.glob("#{Work_dir}/png/*") do |f|
         File.delete(f)
       end
-      Dir.glob("./conv/*") do |f|
+      Dir.rmdir("#{Work_dir}/png")
+      Dir.glob("#{Work_dir}/conv/*") do |f|
         File.delete(f)
       end
+      Dir.rmdir("#{Work_dir}/conv")
+      Dir.rmdir("#{Work_dir}")
     end
   end
 end
@@ -206,8 +217,6 @@ settings = {
   edge_lines: edge_lines,
   level_settings: level_settings
 }
-Dir.mkdir("./png") if not Dir.exist?("./png")
-Dir.mkdir("./conv") if not Dir.exist?("./conv")
 
 books.each do |book|
   Book.new(book, settings)
