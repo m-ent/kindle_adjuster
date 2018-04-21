@@ -73,7 +73,7 @@ def get_crop_area(f, settings)
   dx = x/sample_n
   dy = y/sample_n
   threshold_x = 0.75
-  threshold_y = settings[:crop_nombre] ? 0.66: 0.90
+  threshold_y = settings[:crop_nombre] ? 0.66: 0.975
   dev_aspect = settings[:device].aspect
 
   start_x, end_x = get_breakpoint(f, :x, sample_n, dx, threshold_x)
