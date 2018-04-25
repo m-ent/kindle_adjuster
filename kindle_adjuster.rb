@@ -4,6 +4,13 @@
 #            graphics/sam2p
 #            graphics/pdftk
 
+required_pkg = ""
+required_pkg += " graphics/ImageMagick," unless `which convert` =~ /^\/usr\/local/
+required_pkg += " graphics/poppler," unless `which pdfimages` =~ /^\/usr\/local/
+required_pkg += " graphics/sam2p," unless `which sam2p` =~ /^\/usr\/local/
+required_pkg += " graphics/pdftk," unless `which pdftk` =~ /^\/usr\/local/
+puts "This program requires:#{required_pkg[0, required_pkg.length - 1]}." unless required_pkg == ""
+
 #device_name = :kindle_paperwhite #5th Gen, 2012
 device_name = :kindle_paperwhite3 #7th Gen, 2015
 crop_nombre = true # ノンブルなどを削除するか
